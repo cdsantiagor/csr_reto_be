@@ -1,0 +1,9 @@
+{
+    "httpMethod": "GET",
+    "path": "/people",
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+  
+  

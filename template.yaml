@@ -1,0 +1,361 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  RetoGetLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: test-csr-reto-get-lambda
+      Handler: dist/infrastructure/handlers/PeopleReadHandler.handler
+      Runtime: nodejs18.x
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          DB_HOST: "tu_host"
+          DB_USER: "tu_usuario"
+          DB_PASSWORD: "tu_clave"
+          DB_NAME: "tu_basedatos"
+
+  RetoPostLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: test-csr-reto-post-lambda
+      Handler: dist/infrastructure/handlers/PeopleWriteHandler.handler
+      Runtime: nodejs18.x
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          DB_HOST: "tu_host"
+          DB_USER: "tu_usuario"
+          DB_PASSWORD: "tu_clave"
+          DB_NAME: "tu_basedatos"
+  
+  RetoGetLambdaPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref RetoGetLambdaFunction
+      Principal: apigateway.amazonaws.com
+  
+  RetoPostLambdaPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref RetoPostLambdaFunction
+      Principal: apigateway.amazonaws.com
+
+
+
+  ###api gateways
+  CloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Action: "sts:AssumeRole"
+          Effect: Allow
+          Principal:
+            Service: apigateway.amazonaws.com
+      Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+
+  ApiCWLRoleArn:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt CloudWatchRole.Arn
+
+  RestApi:
+    Type: AWS::Serverless::Api
+    DependsOn: ApiCWLRoleArn
+    Properties:
+      Name: test-csr-apigw-rest-api
+      StageName: dev
+      EndpointConfiguration:
+        Type: EDGE
+      Auth:
+        ResourcePolicy:
+          CustomStatements:
+            [
+              {
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "execute-api:Invoke",
+                "Resource": "*",
+              },
+            ]
+      Cors:
+        AllowMethods: "'POST, GET, DELETE, OPTIONS, PUT'"
+        AllowHeaders: "'X-Forwarded-For,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+        MaxAge: "'600'"
+      
+      MethodSettings:
+        - MetricsEnabled: true
+          DataTraceEnabled: true
+          HttpMethod: "*"
+          LoggingLevel: "INFO"
+          ResourcePath: "/*"
+          ThrottlingRateLimit: 3000
+          ThrottlingBurstLimit: 5000
+          
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: test-csr-apigw-rest-api
+          description: API que define los servicios de TEST CSR API
+          version: "1.0"
+        x-amazon-apigateway-request-validators:
+          basic:
+            validateRequestBody: true
+            validateRequestParameters: true
+        x-amazon-apigateway-request-validator: basic
+        components:
+          schemas:
+            CrearPeople:
+              type: object
+              required:
+                - id
+              properties:
+                id:
+                  type: integer
+                  format: int32
+                  description: Identificador del personaje a crear
+          
+        paths:
+          /people:
+            get:
+              summary: Obtener la lista de personajes
+              parameters:
+                - name: nombre
+                  in: query
+                  description: Nombre del Personaje
+                  schema:
+                    type: string
+                - name: altura
+                  in: query
+                  description: Altura del Personaje
+                  schema:
+                    type: string
+                - name: peso
+                  in: query
+                  description: Peso del Personaje
+                  schema:
+                    type: string
+                - name: colorCabello
+                  in: query
+                  description: Color de cabello del Personaje
+                  schema:
+                    type: string
+                - name: colorPiel
+                  in: query
+                  description: Color de piel del Personaje
+                  schema:
+                    type: string
+                - name: colorOjos
+                  in: query
+                  description: Color de ojos del Personaje
+                  schema:
+                    type: string
+                - name: genero
+                  in: query
+                  description: Genero del Personaje
+                  schema:
+                    type: string
+                - name: mundoNatal
+                  in: query
+                  description: Mundo Natal del Personaje
+                  schema:
+                    type: string
+
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781664183390:function:test-csr-reto-get-lambda/invocations"
+              responses:
+                "200":
+                  description: Lista de personajes
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                  content: {}
+                "400":
+                  description: Bad request
+                "500":
+                  description: Internal server error
+
+            post:
+              summary: Crea un personaje
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/CrearPeople"
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781664183390:function:test-csr-reto-post-lambda/invocations"
+              responses:
+                "200":
+                  description: Personaje creado
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                  content: {}
+                "400":
+                  description: Bad request
+                "500":
+                  description: Internal server error
+          /people/{id}:
+            get:
+              summary: Obtener un personaje por su ID
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781664183390:function:test-csr-reto-get-lambda/invocations"
+              responses:
+                "200":
+                  description: Personaje obtenido
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                  content: {}
+                "400":
+                  description: Bad request
+                "500":
+                  description: Internal server error
+                  
+          /swapi/{id}:
+            get:
+              summary: Obtener un personaje de la API Externa SWAPI por su ID
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781664183390:function:test-csr-reto-get-lambda/invocations"
+              responses:
+                "200":
+                  description: Personaje Externo SWAPI obtenido
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                  content: {}
+                "400":
+                  description: Bad request
+                "500":
+                  description: Internal server error
+
+          /swagger-ui:
+            get:
+              summary: Despliega swagger-ui para presentar el contrato de los servicios del API
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781664183390:function:test-csr-lambda-swagger-fn/invocations"
+                passthroughBehavior: "when_no_match"
+                type: "aws_proxy"
+              responses:
+                "200":
+                  description: "Consulta exitosa"
+              security:
+                - {}
+          /swagger-ui/{proxy+}:
+            get:
+              summary: Despliega swagger-ui para presentar el contrato de los servicios del API
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781664183390:function:test-csr-lambda-swagger-fn/invocations"
+                passthroughBehavior: "when_no_match"
+                type: "aws_proxy"
+              parameters:
+                - name: "proxy+"
+                  in: path
+              responses:
+                "200":
+                  description: "Consulta exitosa"
+              security:
+                - {}
+          /swagger:
+            get:
+              summary: Despliega la especificacion swagger de la documentacion
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781664183390:function:test-csr-lambda-swagger-fn/invocations"
+                passthroughBehavior: "when_no_match"
+                type: "aws_proxy"
+              responses:
+                "200":
+                  description: "Consulta exitosa"
+              security:
+                - {}
+
+  ### SWAGGER
+  LibsNodeLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      CompatibleRuntimes: 
+      - nodejs18.x
+      ContentUri: swagger/layers/lib-node
+      Description: Dependencias nodejs para el swagger
+      LayerName: "test-csr-lambda-swagger-layer-node-js"
+      RetentionPolicy: Delete
+  
+  SwaggerFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      FunctionName: "test-csr-lambda-swagger-fn"
+      Description: Genera la documentacion swagger para el API de TEST CSR
+      CodeUri: swagger/function
+      Handler: app.lambda_handler
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 256
+      Layers:
+        - !Ref LibsNodeLayer
+      Environment:
+        Variables:
+            STAGE_NAME: "dev"
+            REGION: "us-east-1"
+      Policies:
+        - AWSLambdaExecute
+        - AWSXrayWriteOnlyAccess
+        - AWSXRayDaemonWriteAccess
+        - Version: '2012-10-17'
+          Statement:
+           - Effect: Allow 
+             Action:
+             - apigateway:GET
+             Resource: "arn:aws:apigateway:us-east-1:*"
+
+  SwaggerFunctionInvokePermission: 
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt SwaggerFunction.Arn
+      Principal: 'apigateway.amazonaws.com'

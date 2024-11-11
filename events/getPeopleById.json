@@ -1,0 +1,12 @@
+{
+    "httpMethod": "GET",
+    "path": "/people",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "pathParameters": {
+        "id": "1"
+    }
+  }
+  
+  

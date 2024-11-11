@@ -1,0 +1,16 @@
+{
+  "name": "node_js",
+  "version": "1.0.0",
+  "description": "NodeJS",
+  "main": "app.js",
+  "author": "SAM CLI",
+  "license": "MIT",
+  "dependencies": {
+    "aws-xray-sdk": "^3.3.4",
+    "axios": "^0.21.1",
+    "express": "^4.17.3",
+    "serverless-http": "^2.6.1",
+    "swagger-ui-express": "^4.1.6",
+    "aws-sdk":"^2.1450.0"
+  }
+}
